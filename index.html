@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCU Watchlist - เช็คลิสต์หนังและซีรีส์จักรวาล Marvel</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Prompt & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Prompt', 'Inter', 'sans-serif'],
+                        display: ['Inter', 'Prompt', 'sans-serif'],
+                    },
+                    colors: {
+                        marvel: {
+                            red: '#ED1D24',
+                            darkRed: '#B8141A',
+                            black: '#0B0D12',
+                            card: '#141821',
+                            cardHover: '#1B202C',
+                            border: '#252C3D',
+                            gold: '#F5C518'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        body {
+            background-color: #0B0D12;
+            color: #F3F4F6;
+            font-family: 'Prompt', 'Inter', sans-serif;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0B0D12;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #252C3D;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ED1D24;
+        }
+
+        /* Smooth Expandable Drawer */
+        .smooth-drawer {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.3s ease-out;
+        }
+        .smooth-drawer.open {
+            grid-template-rows: 1fr;
+        }
+        .smooth-drawer-inner {
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-marvel-red selection:text-white">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Hidden File Input for JSON Import -->
+    <input type="file" id="import-file-input" accept=".json,application/json" class="hidden" onchange="handleImportJSON(event)">
+
+    <!-- Sticky Header -->
+    <header class="bg-gradient-to-b from-[#1A080B] via-[#11141D] to-[#0B0D12] border-b border-marvel-border z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="bg-marvel-red text-white font-display font-extrabold text-xl sm:text-2xl px-2.5 py-1 tracking-tighter rounded shadow-lg shadow-marvel-red/30 select-none">
+                    MARVEL
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-xl font-bold text-white leading-tight">
+                        MCU Watchlist Tracker
+                    </h1>
+                    <p class="text-[11px] sm:text-xs text-gray-400">
+                        เช็คลิสต์ภาพยนตร์และซีรีส์จักรวาลมาร์เวล (Phase 1 – Phase 6 & กำลังรอเข้าฉาย)
+                    </p>
+                </div>
+            </div>
+
+            <div class="hidden sm:flex items-center gap-2 text-xs text-gray-400 bg-marvel-card/80 border border-marvel-border px-3 py-1.5 rounded-xl">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>บันทึกอัตโนมัติในเครื่อง</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sticky Pinned Top Total Progress Bar -->
+    <div id="sticky-total-bar" class="sticky top-0 z-40 bg-[#0D1017]/95 backdrop-blur-md border-b border-marvel-border/90 shadow-xl">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3 space-y-1.5">
+            <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-base sm:text-lg shrink-0">🏆</span>
+                    <h2 class="text-sm sm:text-base font-bold text-white truncate">
+                        รวมทั้งหมด
+                    </h2>
+                </div>
+                <div class="flex items-baseline gap-2 shrink-0">
+                    <span id="total-progress-count" class="text-xs sm:text-sm font-bold text-gray-200">0 / 0 เรื่อง</span>
+                    <span id="total-progress-percent" class="text-sm sm:text-lg font-display font-extrabold text-marvel-gold">0%</span>
+                </div>
+            </div>
+            <div class="w-full bg-gray-800/90 rounded-full h-2.5 overflow-hidden p-0.5 border border-gray-700/60">
+                <div id="total-progress-bar" class="bg-gradient-to-r from-marvel-red via-orange-500 to-marvel-gold h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-5">
+
+        <!-- 1. Top Progress Section -->
+        <section class="bg-marvel-card border border-marvel-border rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
+
+            <!-- 2-Column Grid: ภาพยนตร์ (Movies) & ซีรีส์ (Series) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <!-- Movies Card -->
+                <div class="bg-marvel-black/75 border border-marvel-border rounded-xl p-4 flex flex-col justify-between space-y-2.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs sm:text-sm font-semibold text-blue-300 flex items-center gap-1.5">
+                            🎬 ภาพยนตร์ (Movies)
+                        </span>
+                        <span id="stat-movies" class="text-xs sm:text-sm font-bold text-white">0 / 0 (0%)</span>
+                    </div>
+                    <div class="w-full bg-gray-800 rounded-full h-2.5 overflow-hidden">
+                        <div id="bar-movies" class="bg-blue-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Series Card -->
+                <div class="bg-marvel-black/75 border border-marvel-border rounded-xl p-4 flex flex-col justify-between space-y-2.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs sm:text-sm font-semibold text-purple-300 flex items-center gap-1.5">
+                            📺 ซีรีส์ (Series)
+                        </span>
+                        <span id="stat-series" class="text-xs sm:text-sm font-bold text-white">0 / 0 (0%)</span>
+                    </div>
+                    <div class="w-full bg-gray-800 rounded-full h-2.5 overflow-hidden">
+                        <div id="bar-series" class="bg-purple-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collapsible Per-Phase Progress Breakdown (Phase 1 - Phase 6) -->
+            <div class="pt-2 border-t border-marvel-border/70">
+                <button onclick="togglePhaseProgressDrawer()" class="w-full flex items-center justify-between text-xs sm:text-sm font-medium text-gray-300 hover:text-white py-1 transition cursor-pointer">
+                    <span class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-marvel-gold" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                        </svg>
+                        ดูความคืบหน้าแยกตาม Phase (Phase 1 – Phase 6)
+                    </span>
+                    <span id="phase-progress-toggle-label" class="inline-flex items-center gap-1 text-xs text-gray-400">
+                        <span>แสดงรายละเอียด</span>
+                        <svg id="phase-progress-chevron" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </span>
+                </button>
+
+                <div id="phase-progress-drawer" class="smooth-drawer">
+                    <div class="smooth-drawer-inner">
+                        <div id="phase-progress-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-3">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. Cleanly Divided Filter & Sort Section -->
+        <section class="bg-marvel-card border border-marvel-border rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl">
+
+            <!-- Search Input & Phase Selector -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div class="relative md:col-span-8">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input type="text" id="search-input" oninput="handleSearch(this.value)"
+                        placeholder="ค้นหาชื่อภาพยนตร์, ซีรีส์ หรือปีที่ฉาย (เช่น Iron Man, Loki, 2024)..."
+                        class="w-full bg-marvel-black border border-marvel-border focus:border-marvel-red rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none transition">
+                </div>
+
+                <div class="md:col-span-4">
+                    <select id="phase-select" onchange="setPhaseFilter(this.value)"
+                        class="w-full bg-marvel-black border border-marvel-border focus:border-marvel-red rounded-xl px-3.5 py-2.5 text-sm text-gray-200 focus:outline-none transition cursor-pointer">
+                        <option value="all">ทุก Phase (Phase 1 – Phase 6)</option>
+                        <option value="1">Phase 1 (2008–2012)</option>
+                        <option value="2">Phase 2 (2013–2015)</option>
+                        <option value="3">Phase 3 (2016–2019)</option>
+                        <option value="4">Phase 4 (2021–2022)</option>
+                        <option value="5">Phase 5 (2023–2025)</option>
+                        <option value="6">Phase 6 (2025–2028)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Type Filter & Evenly Spaced Status Filter Pills -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5 pt-3 border-t border-marvel-border/70">
+                <!-- Type Filter (3 equal columns) -->
+                <div class="lg:col-span-5 space-y-1.5">
+                    <label class="block text-xs font-semibold text-gray-400 px-0.5">ประเภทเนื้อหา</label>
+                    <div class="grid grid-cols-3 gap-1 bg-marvel-black p-1 rounded-xl border border-marvel-border">
+                        <button onclick="setTypeFilter('all')" id="btn-type-all" class="py-2 px-2 rounded-lg text-xs font-medium text-center transition cursor-pointer">
+                            ทั้งหมด
+                        </button>
+                        <button onclick="setTypeFilter('movie')" id="btn-type-movie" class="py-2 px-2 rounded-lg text-xs font-medium text-center transition cursor-pointer">
+                            🎬 ภาพยนตร์
+                        </button>
+                        <button onclick="setTypeFilter('series')" id="btn-type-series" class="py-2 px-2 rounded-lg text-xs font-medium text-center transition cursor-pointer">
+                            📺 ซีรีส์
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Status Filter Pills (4 equal columns) -->
+                <div class="lg:col-span-7 space-y-1.5">
+                    <label class="block text-xs font-semibold text-gray-400 px-0.5">สถานะการรับชม</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-1 bg-marvel-black p-1 rounded-xl border border-marvel-border">
+                        <button onclick="setStatusFilter('all')" id="btn-status-all" class="py-2 px-2 rounded-lg text-xs font-medium text-center transition cursor-pointer">
+                            ทั้งหมด
+                        </button>
+                        <button onclick="setStatusFilter('watched')" id="btn-status-watched" class="py-2 px-2 rounded-lg text-xs font-medium text-center transition cursor-pointer">
+                            ✅ ดูแล้ว
+                        </button>
+                        <button onclick="setStatusFilter('unwatched')" id="btn-status-unwatched" class="py-2 px-2 rounded-lg text-xs font-medium text-center transition cursor-pointer">
+                            ⏳ ยังไม่ได้ดู
+                        </button>
+                        <button onclick="setStatusFilter('fav')" id="btn-status-fav" class="py-2 px-2 rounded-lg text-xs font-medium text-center transition cursor-pointer">
+                            ❤️ รายการโปรด
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Watch Order / Sort Selector -->
+            <div class="pt-3 border-t border-marvel-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <span class="text-xs font-semibold text-gray-400 px-0.5 shrink-0">เรียงลำดับการแสดงผล:</span>
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <button onclick="setOrderMode('release')" id="btn-order-release" class="px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer">
+                        📅 ลำดับปีที่ฉาย
+                    </button>
+                    <button onclick="setOrderMode('chronological')" id="btn-order-chronological" class="px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer">
+                        ⏳ ลำดับไทม์ไลน์เนื้อเรื่อง
+                    </button>
+                    <button onclick="setOrderMode('imdb')" id="btn-order-imdb" class="px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer">
+                        ⭐ คะแนน IMDb
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Result Count & Sort Order Hint -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs sm:text-sm text-gray-400 px-1">
+            <p id="showing-count">กำลังแสดง 0 รายการ</p>
+            <p id="order-hint-text" class="text-gray-500 text-xs">กำลังเรียงตามลำดับปีที่ฉาย (Release Order)</p>
+        </div>
+
+        <!-- 3. Main Released List -->
+        <section id="checklist-container" class="space-y-3">
+            <!-- Released cards rendered dynamically -->
+        </section>
+
+        <!-- 4. Separated Upcoming Releases Section at the Bottom -->
+        <section id="upcoming-section" class="hidden pt-8 mt-8 space-y-4">
+            <hr class="border-t-2 border-dashed border-marvel-border mb-6">
+
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-base shrink-0">
+                        🔜
+                    </span>
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-cyan-300 leading-tight">
+                            กำลังรอเข้าฉาย (Upcoming Releases)
+                        </h2>
+                        <p class="text-xs text-gray-400">
+                            ภาพยนตร์และซีรีส์ที่มีกำหนดฉายในอนาคต (ไม่นับรวมในสถิติความคืบหน้า)
+                        </p>
+                    </div>
+                </div>
+                <span id="upcoming-count-badge" class="self-start sm:self-auto px-3 py-1 rounded-full text-xs font-semibold bg-cyan-950/70 text-cyan-300 border border-cyan-500/30">
+                    0 รายการ
+                </span>
+            </div>
+
+            <div id="upcoming-container" class="space-y-3">
+                <!-- Upcoming cards rendered dynamically: Title + Year only (no sequence number, no IMDb, no Fav) -->
+            </div>
+        </section>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="hidden bg-marvel-card border border-marvel-border rounded-2xl p-12 text-center space-y-3">
+            <div class="w-14 h-14 bg-gray-800/80 rounded-full flex items-center justify-center mx-auto text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                </svg>
+            </div>
+            <h3 class="text-base sm:text-lg font-semibold text-white">ไม่พบรายการที่ตรงกับเงื่อนไข</h3>
+            <p class="text-xs sm:text-sm text-gray-400 max-w-md mx-auto">ลองเปลี่ยนตัวกรองประเภท สถานะการรับชม หรือคำค้นหาใหม่อีกครั้ง</p>
+            <button onclick="resetFilters()" class="mt-2 px-4 py-2 bg-marvel-red hover:bg-marvel-darkRed text-white text-xs sm:text-sm font-medium rounded-xl transition cursor-pointer">
+                ล้างตัวกรองทั้งหมด
+            </button>
+        </div>
+
+    </main>
+
+    <!-- 5. Bottom Action Bar & Footer -->
+    <footer class="border-t border-marvel-border bg-[#0E1118] py-8 mt-12">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
+            <div class="bg-marvel-card border border-marvel-border rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+                <div class="text-center sm:text-left">
+                    <h3 class="text-sm font-bold text-white">จัดการข้อมูลเช็คลิสต์ (Export / Import / Reset)</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">สำรองข้อมูลสถานะการดูเป็นไฟล์ JSON เพื่อย้ายอุปกรณ์ หรือล้างข้อมูลเริ่มต้นใหม่</p>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-center sm:justify-end gap-2.5 w-full sm:w-auto">
+                    <button onclick="exportJSON()" class="px-4 py-2.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/40 rounded-xl text-xs sm:text-sm font-medium transition flex items-center gap-2 cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>Export JSON</span>
+                    </button>
+
+                    <button onclick="triggerImportJSON()" class="px-4 py-2.5 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs sm:text-sm font-medium transition flex items-center gap-2 cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        <span>Import JSON</span>
+                    </button>
+
+                    <button onclick="openResetModal()" class="px-4 py-2.5 bg-red-600/15 hover:bg-red-600/30 text-red-400 border border-red-500/40 rounded-xl text-xs sm:text-sm font-medium transition flex items-center gap-2 cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>รีเซ็ตข้อมูล</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-marvel-border/60 flex flex-col items-center justify-center gap-2 text-center">
+                <div class="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-marvel-red/15 via-marvel-gold/10 to-marvel-red/15 border border-marvel-gold/30 shadow-md">
+                    <span class="w-1.5 h-1.5 rounded-full bg-marvel-red animate-pulse"></span>
+                    <span class="text-xs sm:text-sm font-bold tracking-wider bg-gradient-to-r from-white via-marvel-gold to-amber-200 bg-clip-text text-transparent">
+                        สร้างโดย Sax
+                    </span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-marvel-gold animate-pulse"></span>
+                </div>
+                <p class="text-[11px] text-gray-500">
+                    MCU Watchlist Tracker • ครบถ้วนตั้งแต่ Phase 1 ถึงภาพยนตร์และซีรีส์ที่กำลังจะเข้าฉาย
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Confirmation Modal for Reset -->
+    <div id="reset-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-marvel-card border border-red-500/40 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center gap-3 text-red-400">
+                <div class="w-11 h-11 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-white">ยืนยันการรีเซ็ตข้อมูลทั้งหมด?</h3>
+                    <p class="text-xs text-red-300">การกระทำนี้ไม่สามารถย้อนกลับได้</p>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 leading-relaxed">
+                คุณแน่ใจหรือไม่ว่าต้องการล้างสถานะ <strong>"ดูแล้ว"</strong> รายตอนซีรีส์ และ <strong>"รายการโปรด (Fav)"</strong> ทั้งหมด? หากต้องการเก็บข้อมูลไว้ แนะนำให้กด Export JSON ก่อน
+            </p>
+            <div class="flex justify-end gap-2.5 pt-2">
+                <button onclick="closeResetModal()" class="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 text-sm font-medium transition cursor-pointer">
+                    ยกเลิก
+                </button>
+                <button onclick="confirmResetProgress()" class="px-4 py-2 rounded-xl bg-marvel-red hover:bg-marvel-darkRed text-white text-sm font-semibold shadow-lg shadow-marvel-red/25 transition cursor-pointer">
+                    ยืนยันการรีเซ็ต
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic & MCU Dataset -->
+    <script>
+        /**
+         * Comprehensive MCU Dataset (Phases 1–6 + Upcoming Releases)
+         * Each series includes episode titles formatted with S01E01 etc.
+         */
+        const mcuData = [
+            // ================= PHASE 1 =================
+            { id: 'iron-man-1', releaseOrder: 1, chronoOrder: 3, timelineEra: 'ค.ศ. 2008', title: 'Iron Man', thaiTitle: 'ไอรอน แมน มหาประลัยคนเกราะเหล็ก', year: 2008, imdb: '7.9', type: 'movie', phase: 1 },
+            { id: 'incredible-hulk', releaseOrder: 2, chronoOrder: 5, timelineEra: 'ค.ศ. 2010', title: 'The Incredible Hulk', thaiTitle: 'ดิ อินเครดิเบิล ฮัลค์ มนุษย์ตัวเขียวจอมพลัง', year: 2008, imdb: '6.6', type: 'movie', phase: 1 },
+            { id: 'iron-man-2', releaseOrder: 3, chronoOrder: 4, timelineEra: 'ค.ศ. 2010', title: 'Iron Man 2', thaiTitle: 'ไอรอน แมน 2', year: 2010, imdb: '6.9', type: 'movie', phase: 1 },
+            { id: 'thor-1', releaseOrder: 4, chronoOrder: 6, timelineEra: 'ค.ศ. 2010', title: 'Thor', thaiTitle: 'ธอร์ เทพเจ้าสายฟ้า', year: 2011, imdb: '7.0', type: 'movie', phase: 1 },
+            { id: 'captain-america-1', releaseOrder: 5, chronoOrder: 1, timelineEra: 'ยุคสงครามโลกครั้งที่ 2 (1942–1945)', title: 'Captain America: The First Avenger', thaiTitle: 'กัปตัน อเมริกา: อเวนเจอร์ที่ 1', year: 2011, imdb: '6.9', type: 'movie', phase: 1 },
+            { id: 'avengers-1', releaseOrder: 6, chronoOrder: 7, timelineEra: 'ค.ศ. 2012', title: 'Marvel\'s The Avengers', thaiTitle: 'ดิ อเวนเจอร์ส', year: 2012, imdb: '8.0', type: 'movie', phase: 1 },
+
+            // ================= PHASE 2 =================
+            { id: 'iron-man-3', releaseOrder: 7, chronoOrder: 9, timelineEra: 'ธันวาคม 2012', title: 'Iron Man 3', thaiTitle: 'ไอรอน แมน 3', year: 2013, imdb: '7.1', type: 'movie', phase: 2 },
+            { id: 'thor-2', releaseOrder: 8, chronoOrder: 8, timelineEra: 'ค.ศ. 2013', title: 'Thor: The Dark World', thaiTitle: 'ธอร์ เทพเจ้าสายฟ้าโลกาทมิฬ', year: 2013, imdb: '6.7', type: 'movie', phase: 2 },
+            { id: 'captain-america-2', releaseOrder: 9, chronoOrder: 10, timelineEra: 'ค.ศ. 2014', title: 'Captain America: The Winter Soldier', thaiTitle: 'กัปตัน อเมริกา: มัจจุราชอหังการ', year: 2014, imdb: '7.7', type: 'movie', phase: 2 },
+            { id: 'gotg-1', releaseOrder: 10, chronoOrder: 11, timelineEra: 'ค.ศ. 2014', title: 'Guardians of the Galaxy', thaiTitle: 'รวมพันธุ์นักสู้พิทักษ์จักรวาล', year: 2014, imdb: '8.0', type: 'movie', phase: 2 },
+            { id: 'avengers-2', releaseOrder: 11, chronoOrder: 13, timelineEra: 'ค.ศ. 2015', title: 'Avengers: Age of Ultron', thaiTitle: 'อเวนเจอร์ส: มหาศึกอัลตรอนถล่มโลก', year: 2015, imdb: '7.3', type: 'movie', phase: 2 },
+            { id: 'ant-man-1', releaseOrder: 12, chronoOrder: 14, timelineEra: 'ค.ศ. 2015', title: 'Ant-Man', thaiTitle: 'แอนท์-แมน มนุษย์มดมหากาฬ', year: 2015, imdb: '7.2', type: 'movie', phase: 2 },
+
+            // ================= PHASE 3 =================
+            { id: 'captain-america-3', releaseOrder: 13, chronoOrder: 15, timelineEra: 'ค.ศ. 2016', title: 'Captain America: Civil War', thaiTitle: 'กัปตัน อเมริกา: ศึกฮีโร่ระห่ำโลก', year: 2016, imdb: '7.8', type: 'movie', phase: 3 },
+            { id: 'doctor-strange-1', releaseOrder: 14, chronoOrder: 19, timelineEra: 'ค.ศ. 2016–2017', title: 'Doctor Strange', thaiTitle: 'ด็อกเตอร์ สเตรนจ์ จอมเวทย์มหากาฬ', year: 2016, imdb: '7.5', type: 'movie', phase: 3 },
+            { id: 'gotg-2', releaseOrder: 15, chronoOrder: 12, timelineEra: 'ปลายปี 2014', title: 'Guardians of the Galaxy Vol. 2', thaiTitle: 'รวมพันธุ์นักสู้พิทักษ์จักรวาล 2', year: 2017, imdb: '7.6', type: 'movie', phase: 3 },
+            { id: 'spider-man-1', releaseOrder: 16, chronoOrder: 18, timelineEra: 'ปลายปี 2016', title: 'Spider-Man: Homecoming', thaiTitle: 'สไปเดอร์-แมน: โฮมคัมมิ่ง', year: 2017, imdb: '7.4', type: 'movie', phase: 3 },
+            { id: 'thor-3', releaseOrder: 17, chronoOrder: 20, timelineEra: 'ปลายปี 2017', title: 'Thor: Ragnarok', thaiTitle: 'ธอร์: ศึกอวสานเทพเจ้า', year: 2017, imdb: '7.9', type: 'movie', phase: 3 },
+            { id: 'black-panther-1', releaseOrder: 18, chronoOrder: 17, timelineEra: 'ค.ศ. 2016 (หลัง Civil War)', title: 'Black Panther', thaiTitle: 'แบล็ค แพนเธอร์', year: 2018, imdb: '7.3', type: 'movie', phase: 3 },
+            { id: 'avengers-3', releaseOrder: 19, chronoOrder: 22, timelineEra: 'ค.ศ. 2018', title: 'Avengers: Infinity War', thaiTitle: 'อเวนเจอร์ส: มหาสงครามล้างจักรวาล', year: 2018, imdb: '8.4', type: 'movie', phase: 3 },
+            { id: 'ant-man-2', releaseOrder: 20, chronoOrder: 21, timelineEra: 'ค.ศ. 2018 (ก่อน Infinity War)', title: 'Ant-Man and the Wasp', thaiTitle: 'แอนท์-แมน และ เดอะ วอสพ์', year: 2018, imdb: '7.0', type: 'movie', phase: 3 },
+            { id: 'captain-marvel', releaseOrder: 21, chronoOrder: 2, timelineEra: 'ค.ศ. 1995', title: 'Captain Marvel', thaiTitle: 'กัปตัน มาร์เวล', year: 2019, imdb: '6.8', type: 'movie', phase: 3 },
+            { id: 'avengers-4', releaseOrder: 22, chronoOrder: 23, timelineEra: 'ค.ศ. 2023', title: 'Avengers: Endgame', thaiTitle: 'อเวนเจอร์ส: เผด็จศึก', year: 2019, imdb: '8.4', type: 'movie', phase: 3 },
+            { id: 'spider-man-2', releaseOrder: 23, chronoOrder: 30, timelineEra: 'ฤดูร้อน 2024', title: 'Spider-Man: Far From Home', thaiTitle: 'สไปเดอร์-แมน: ฟาร์ ฟรอม โฮม', year: 2019, imdb: '7.4', type: 'movie', phase: 3 },
+
+            // ================= PHASE 4 =================
+            {
+                id: 'wandavision', releaseOrder: 24, chronoOrder: 27, timelineEra: 'พฤศจิกายน 2023 (หลัง Endgame 3 สัปดาห์)',
+                title: 'WandaVision', thaiTitle: 'วันด้าวิชั่น', year: 2021, imdb: '7.9', type: 'series', phase: 4,
+                episodes: [
+                    'S01E01: Filmed Before a Live Studio Audience',
+                    'S01E02: Don\'t Touch That Dial',
+                    'S01E03: Now in Color',
+                    'S01E04: We Interrupt This Program',
+                    'S01E05: On a Very Special Episode...',
+                    'S01E06: All-New Halloween Spooktacular!',
+                    'S01E07: Breaking the Fourth Wall',
+                    'S01E08: Previously On',
+                    'S01E09: The Series Finale'
+                ]
+            },
+            {
+                id: 'falcon-winter-soldier', releaseOrder: 25, chronoOrder: 29, timelineEra: 'เมษายน 2024',
+                title: 'The Falcon and the Winter Soldier', thaiTitle: 'ฟอลคอนและวินเทอร์ โซลเยอร์', year: 2021, imdb: '7.1', type: 'series', phase: 4,
+                episodes: [
+                    'S01E01: New World Order',
+                    'S01E02: The Star-Spangled Man',
+                    'S01E03: Power Broker',
+                    'S01E04: The Whole World Is Watching',
+                    'S01E05: Truth',
+                    'S01E06: One World, One People'
+                ]
+            },
+            {
+                id: 'loki-s1', releaseOrder: 26, chronoOrder: 24, timelineEra: 'นอกเหนือกาลเวลา (TVA / แยกจากปี 2012)',
+                title: 'Loki (Season 1)', thaiTitle: 'โลกิ ซีซั่น 1', year: 2021, imdb: '8.2', type: 'series', phase: 4,
+                episodes: [
+                    'S01E01: Glorious Purpose',
+                    'S01E02: The Variant',
+                    'S01E03: Lamentis',
+                    'S01E04: The Nexus Event',
+                    'S01E05: Journey into Mystery',
+                    'S01E06: For All Time. Always.'
+                ]
+            },
+            { id: 'black-widow', releaseOrder: 27, chronoOrder: 16, timelineEra: 'ค.ศ. 2016 (หลัง Civil War)', title: 'Black Widow', thaiTitle: 'แบล็ค วิโดว์', year: 2021, imdb: '6.6', type: 'movie', phase: 4 },
+            {
+                id: 'what-if-s1', releaseOrder: 28, chronoOrder: 26, timelineEra: 'มัลติเวิร์สคู่ขนาน',
+                title: 'What If...? (Season 1)', thaiTitle: 'วอท อีฟ...? ซีซั่น 1', year: 2021, imdb: '7.4', type: 'series', phase: 4,
+                episodes: [
+                    'S01E01: What If... Captain Carter Were the First Avenger?',
+                    'S01E02: What If... T\'Challa Became a Star-Lord?',
+                    'S01E03: What If... the World Lost Its Mightiest Heroes?',
+                    'S01E04: What If... Doctor Strange Lost His Heart Instead of His Hands?',
+                    'S01E05: What If... Zombies?!',
+                    'S01E06: What If... Killmonger Rescued Tony Stark?',
+                    'S01E07: What If... Thor Were an Only Child?',
+                    'S01E08: What If... Ultron Won?',
+                    'S01E09: What If... the Watcher Broke His Oath?'
+                ]
+            },
+            { id: 'shang-chi', releaseOrder: 29, chronoOrder: 28, timelineEra: 'เมษายน 2024', title: 'Shang-Chi and the Legend of the Ten Rings', thaiTitle: 'ชาง-ชี กับตำนานลับเท็นริงส์', year: 2021, imdb: '7.4', type: 'movie', phase: 4 },
+            { id: 'eternals', releaseOrder: 30, chronoOrder: 32, timelineEra: 'ปลายปี 2024', title: 'Eternals', thaiTitle: 'ฮีโร่พลังเทพเจ้า', year: 2021, imdb: '6.3', type: 'movie', phase: 4 },
+            {
+                id: 'hawkeye', releaseOrder: 31, chronoOrder: 34, timelineEra: 'ธันวาคม 2024',
+                title: 'Hawkeye', thaiTitle: 'ฮอว์คอาย', year: 2021, imdb: '7.5', type: 'series', phase: 4,
+                episodes: [
+                    'S01E01: Never Meet Your Heroes',
+                    'S01E02: Hide and Seek',
+                    'S01E03: Echoes',
+                    'S01E04: Partners, Am I Right?',
+                    'S01E05: Ronin',
+                    'S01E06: So This Is Christmas?'
+                ]
+            },
+            { id: 'spider-man-3', releaseOrder: 32, chronoOrder: 31, timelineEra: 'ปลายปี 2024', title: 'Spider-Man: No Way Home', thaiTitle: 'สไปเดอร์-แมน: โน เวย์ โฮม', year: 2021, imdb: '8.2', type: 'movie', phase: 4 },
+            {
+                id: 'moon-knight', releaseOrder: 33, chronoOrder: 35, timelineEra: 'ต้นปี 2025',
+                title: 'Moon Knight', thaiTitle: 'มูนไนท์', year: 2022, imdb: '7.3', type: 'series', phase: 4,
+                episodes: [
+                    'S01E01: The Goldfish Problem',
+                    'S01E02: Summon the Suit',
+                    'S01E03: The Friendly Type',
+                    'S01E04: The Tomb',
+                    'S01E05: Asylum',
+                    'S01E06: Gods and Monsters'
+                ]
+            },
+            { id: 'doctor-strange-2', releaseOrder: 34, chronoOrder: 33, timelineEra: 'ปลายปี 2024', title: 'Doctor Strange in the Multiverse of Madness', thaiTitle: 'จอมเวทย์มหากาฬ ในมัลติเวิร์สมหาภัย', year: 2022, imdb: '6.9', type: 'movie', phase: 4 },
+            {
+                id: 'ms-marvel', releaseOrder: 35, chronoOrder: 38, timelineEra: 'ปลายปี 2025',
+                title: 'Ms. Marvel', thaiTitle: 'มิสมาร์เวล', year: 2022, imdb: '6.2', type: 'series', phase: 4,
+                episodes: [
+                    'S01E01: Generation Why',
+                    'S01E02: Crushed',
+                    'S01E03: Destined',
+                    'S01E04: Seeing Red',
+                    'S01E05: Time and Again',
+                    'S01E06: No Normal'
+                ]
+            },
+            { id: 'thor-4', releaseOrder: 36, chronoOrder: 39, timelineEra: 'ปลายปี 2025', title: 'Thor: Love and Thunder', thaiTitle: 'ธอร์: ด้วยรักและอัสนี', year: 2022, imdb: '6.2', type: 'movie', phase: 4 },
+            {
+                id: 'she-hulk', releaseOrder: 37, chronoOrder: 37, timelineEra: 'กลางปี 2025',
+                title: 'She-Hulk: Attorney at Law', thaiTitle: 'ชี-ฮัลค์: ทนายสายลุย', year: 2022, imdb: '5.3', type: 'series', phase: 4,
+                episodes: [
+                    'S01E01: A Normal Amount of Rage',
+                    'S01E02: Superhuman Law',
+                    'S01E03: The People vs. Emil Blonsky',
+                    'S01E04: Is This Not Real Magic?',
+                    'S01E05: Mean, Green, and Straight Poured into These Jeans',
+                    'S01E06: Just Jen',
+                    'S01E07: The Retreat',
+                    'S01E08: Ribbit and Rip It',
+                    'S01E09: Whose Show Is This?'
+                ]
+            },
+            { id: 'werewolf-by-night', releaseOrder: 38, chronoOrder: 40, timelineEra: 'ฮาโลวีน 2025', title: 'Werewolf by Night (Special Presentation)', thaiTitle: 'แวร์วูล์ฟ บาย ไนท์', year: 2022, imdb: '7.1', type: 'movie', phase: 4 },
+            { id: 'black-panther-2', releaseOrder: 39, chronoOrder: 36, timelineEra: 'พฤษภาคม 2025', title: 'Black Panther: Wakanda Forever', thaiTitle: 'แบล็ค แพนเธอร์: วาคานด้าจงเจริญ', year: 2022, imdb: '6.7', type: 'movie', phase: 4 },
+            { id: 'gotg-holiday', releaseOrder: 40, chronoOrder: 41, timelineEra: 'ธันวาคม 2025', title: 'The Guardians of the Galaxy Holiday Special', thaiTitle: 'รวมพันธุ์นักสู้พิทักษ์จักรวาล ตอนพิเศษรับวันหยุด', year: 2022, imdb: '6.9', type: 'movie', phase: 4 },
+
+            // ================= PHASE 5 =================
+            { id: 'ant-man-3', releaseOrder: 41, chronoOrder: 42, timelineEra: 'ต้นปี 2026', title: 'Ant-Man and the Wasp: Quantumania', thaiTitle: 'แอนท์-แมน และ เดอะ วอสพ์: ตะลุยมิติควอนตัม', year: 2023, imdb: '6.0', type: 'movie', phase: 5 },
+            { id: 'gotg-3', releaseOrder: 42, chronoOrder: 43, timelineEra: 'ค.ศ. 2026', title: 'Guardians of the Galaxy Vol. 3', thaiTitle: 'รวมพันธุ์นักสู้พิทักษ์จักรวาล 3', year: 2023, imdb: '7.9', type: 'movie', phase: 5 },
+            {
+                id: 'secret-invasion', releaseOrder: 43, chronoOrder: 44, timelineEra: 'พฤศจิกายน 2026',
+                title: 'Secret Invasion', thaiTitle: 'ซีเคร็ต อินเวชั่น', year: 2023, imdb: '5.9', type: 'series', phase: 5,
+                episodes: [
+                    'S01E01: Resurrection',
+                    'S01E02: Promises',
+                    'S01E03: Betrayed',
+                    'S01E04: Beloved',
+                    'S01E05: Harvest',
+                    'S01E06: Home'
+                ]
+            },
+            {
+                id: 'loki-s2', releaseOrder: 44, chronoOrder: 25, timelineEra: 'นอกเหนือกาลเวลา (ต่อจาก Loki ซีซั่น 1)',
+                title: 'Loki (Season 2)', thaiTitle: 'โลกิ ซีซั่น 2', year: 2023, imdb: '8.2', type: 'series', phase: 5,
+                episodes: [
+                    'S02E01: Ouroboros',
+                    'S02E02: Breaking Brad',
+                    'S02E03: 1893',
+                    'S02E04: Heart of the TVA',
+                    'S02E05: Science/Fiction',
+                    'S02E06: Glorious Purpose'
+                ]
+            },
+            { id: 'the-marvels', releaseOrder: 45, chronoOrder: 45, timelineEra: 'ปลายปี 2026', title: 'The Marvels', thaiTitle: 'เดอะ มาร์เวลส์', year: 2023, imdb: '5.5', type: 'movie', phase: 5 },
+            {
+                id: 'what-if-s2', releaseOrder: 46, chronoOrder: 46, timelineEra: 'มัลติเวิร์สคู่ขนาน',
+                title: 'What If...? (Season 2)', thaiTitle: 'วอท อีฟ...? ซีซั่น 2', year: 2023, imdb: '7.4', type: 'series', phase: 5,
+                episodes: [
+                    'S02E01: What If... Nebula Joined the Nova Corps?',
+                    'S02E02: What If... Peter Quill Attacked Earth\'s Mightiest Heroes?',
+                    'S02E03: What If... Happy Hogan Saved Christmas?',
+                    'S02E04: What If... Iron Man Crashed into the Grandmaster?',
+                    'S02E05: What If... Captain Carter Fought the Hydra Stomper?',
+                    'S02E06: What If... Kahhori Reshaped the World?',
+                    'S02E07: What If... Hela Found the Ten Rings?',
+                    'S02E08: What If... the Avengers Assembled in 1602?',
+                    'S02E09: What If... Strange Supreme Intervened?'
+                ]
+            },
+            {
+                id: 'echo', releaseOrder: 47, chronoOrder: 47, timelineEra: 'พฤษภาคม 2025 (ต่อจาก Hawkeye)',
+                title: 'Echo', thaiTitle: 'เอคโค่', year: 2024, imdb: '6.0', type: 'series', phase: 5,
+                episodes: [
+                    'S01E01: Chafa',
+                    'S01E02: Lowak',
+                    'S01E03: Tuklo',
+                    'S01E04: Taloa',
+                    'S01E05: Maya'
+                ]
+            },
+            { id: 'deadpool-wolverine', releaseOrder: 48, chronoOrder: 48, timelineEra: 'ค.ศ. 2024 / เดอะวอยด์', title: 'Deadpool & Wolverine', thaiTitle: 'เดดพูล & วูล์ฟเวอรีน', year: 2024, imdb: '7.6', type: 'movie', phase: 5 },
+            {
+                id: 'agatha-all-along', releaseOrder: 49, chronoOrder: 49, timelineEra: 'ปลายปี 2026 (หลัง WandaVision 3 ปี)',
+                title: 'Agatha All Along', thaiTitle: 'อกาธา ออล อะลอง', year: 2024, imdb: '7.2', type: 'series', phase: 5,
+                episodes: [
+                    'S01E01: Seekest Thou the Road',
+                    'S01E02: Circle Sewn with Fate / Unlock Thy Hidden Gate',
+                    'S01E03: Through Many Miles / Of Tricks and Trials',
+                    'S01E04: If I Can\'t Reach You / Let My Song Teach You',
+                    'S01E05: Darkest Hour / Wake Thy Power',
+                    'S01E06: Familiar by Thy Side',
+                    'S01E07: Death\'s Hand in Mine',
+                    'S01E08: Follow Me My Friend / To Glory at the End',
+                    'S01E09: Maiden Mother Crone'
+                ]
+            },
+            {
+                id: 'what-if-s3', releaseOrder: 50, chronoOrder: 50, timelineEra: 'มัลติเวิร์สคู่ขนาน',
+                title: 'What If...? (Season 3)', thaiTitle: 'วอท อีฟ...? ซีซั่น 3', year: 2024, imdb: '6.8', type: 'series', phase: 5,
+                episodes: [
+                    'S03E01: What If... the Hulk Fought the Mech Avengers?',
+                    'S03E02: What If... Agatha Went to Hollywood?',
+                    'S03E03: What If... the Red Guardian Stopped the Winter Soldier?',
+                    'S03E04: What If... Howard the Duck Got Hitched?',
+                    'S03E05: What If... the Emergence Destroyed the Earth?',
+                    'S03E06: What If... 1872?',
+                    'S03E07: What If... the Watcher Disappeared?',
+                    'S03E08: What If... What If?'
+                ]
+            },
+            { id: 'captain-america-4', releaseOrder: 51, chronoOrder: 51, timelineEra: 'ค.ศ. 2027', title: 'Captain America: Brave New World', thaiTitle: 'กัปตัน อเมริกา: ศึกฮีโร่จักรวาลใหม่', year: 2025, imdb: '6.1', type: 'movie', phase: 5 },
+            {
+                id: 'daredevil-born-again', releaseOrder: 52, chronoOrder: 52, timelineEra: 'ค.ศ. 2027',
+                title: 'Daredevil: Born Again (Season 1)', thaiTitle: 'แดร์เดวิล: บอร์น อะเกน ซีซั่น 1', year: 2025, imdb: '8.4', type: 'series', phase: 5,
+                episodes: [
+                    'S01E01: Heaven\'s Half Hour',
+                    'S01E02: Optics',
+                    'S01E03: The Hollow of His Hand',
+                    'S01E04: Sic Semper Systema',
+                    'S01E05: With Interest',
+                    'S01E06: Excessive Force',
+                    'S01E07: Art for Art\'s Sake',
+                    'S01E08: Isle of Joy',
+                    'S01E09: Straight to Hell'
+                ]
+            },
+            { id: 'thunderbolts', releaseOrder: 53, chronoOrder: 53, timelineEra: 'ค.ศ. 2027', title: 'Thunderbolts*', thaiTitle: 'ธันเดอร์โบลต์ส*', year: 2025, imdb: '7.4', type: 'movie', phase: 5 },
+            {
+                id: 'ironheart', releaseOrder: 54, chronoOrder: 54, timelineEra: 'ค.ศ. 2025–2026 (หลัง Wakanda Forever)',
+                title: 'Ironheart', thaiTitle: 'ไอรอนฮาร์ท', year: 2025, imdb: '6.4', type: 'series', phase: 5,
+                episodes: [
+                    'S01E01: Take Me Home',
+                    'S01E02: Will the Real Natalie Please Stand Up?',
+                    'S01E03: We in Danger, Girl',
+                    'S01E04: Bad Magic',
+                    'S01E05: Karma\'s a Glitch',
+                    'S01E06: The Past Is the Past'
+                ]
+            },
+
+            // ================= PHASE 6 (RELEASED) =================
+            { id: 'fantastic-four', releaseOrder: 55, chronoOrder: 55, timelineEra: 'จักรวาลคู่ขนานยุค 1960s', title: 'The Fantastic Four: First Steps', thaiTitle: 'เดอะ แฟนแทสติก โฟร์: จุดเริ่มต้นปฐมบทใหม่', year: 2025, imdb: '7.5', type: 'movie', phase: 6 },
+            {
+                id: 'eyes-of-wakanda', releaseOrder: 56, chronoOrder: 56, timelineEra: 'ประวัติศาสตร์วาคานด้า',
+                title: 'Eyes of Wakanda', thaiTitle: 'อายส์ ออฟ วาคานด้า', year: 2025, imdb: '7.1', type: 'series', phase: 6,
+                episodes: [
+                    'S01E01: Into the Lion\'s Den',
+                    'S01E02: Legends and Lies',
+                    'S01E03: Lost and Found',
+                    'S01E04: The Last Panther'
+                ]
+            },
+            {
+                id: 'marvel-zombies', releaseOrder: 57, chronoOrder: 57, timelineEra: 'มัลติเวิร์สคู่ขนาน',
+                title: 'Marvel Zombies', thaiTitle: 'มาร์เวล ซอมบี้ส์', year: 2025, imdb: '7.3', type: 'series', phase: 6,
+                episodes: [
+                    'S01E01: Outbreak',
+                    'S01E02: Dead Walking',
+                    'S01E03: No Sanctuary',
+                    'S01E04: Ashes to Ashes'
+                ]
+            },
+            {
+                id: 'wonder-man', releaseOrder: 58, chronoOrder: 58, timelineEra: 'ค.ศ. 2027',
+                title: 'Wonder Man', thaiTitle: 'วันเดอร์ แมน', year: 2026, imdb: '7.2', type: 'series', phase: 6,
+                episodes: [
+                    'S01E01: Hollywood Calling',
+                    'S01E02: Stunt Double',
+                    'S01E03: Ionic',
+                    'S01E04: Leading Man',
+                    'S01E05: Script Rewrite',
+                    'S01E06: Box Office',
+                    'S01E07: Wrap Party',
+                    'S01E08: Finale'
+                ]
+            },
+            {
+                id: 'daredevil-born-again-s2', releaseOrder: 59, chronoOrder: 59, timelineEra: 'ค.ศ. 2027–2028',
+                title: 'Daredevil: Born Again (Season 2)', thaiTitle: 'แดร์เดวิล: บอร์น อะเกน ซีซั่น 2', year: 2026, imdb: '8.5', type: 'series', phase: 6,
+                episodes: [
+                    'S02E01: Shadowland',
+                    'S02E02: Kingpin\'s Gambit',
+                    'S02E03: Blind Justice',
+                    'S02E04: Hell\'s Kitchen Burns',
+                    'S02E05: Devil\'s Due',
+                    'S02E06: The Man Without Fear',
+                    'S02E07: Reckoning',
+                    'S02E08: Resurrection'
+                ]
+            },
+            { id: 'spider-man-4', releaseOrder: 60, chronoOrder: 60, timelineEra: 'ค.ศ. 2027–2028', title: 'Spider-Man: Brand New Day', thaiTitle: 'สไปเดอร์-แมน: แบรนด์ นิว เดย์', year: 2026, imdb: '7.8', type: 'movie', phase: 6 },
+
+            // ================= UPCOMING RELEASES (กำลังรอเข้าฉาย) =================
+            { id: 'vision-quest', releaseOrder: 61, chronoOrder: 61, title: 'Vision Quest', thaiTitle: 'วิชั่น เควสต์', year: 2026, upcoming: true, type: 'series', phase: 6 },
+            { id: 'avengers-doomsday', releaseOrder: 62, chronoOrder: 62, title: 'Avengers: Doomsday', thaiTitle: 'อเวนเจอร์ส: ดูมส์เดย์', year: 2026, upcoming: true, type: 'movie', phase: 6 },
+            { id: 'avengers-secret-wars', releaseOrder: 63, chronoOrder: 63, title: 'Avengers: Secret Wars', thaiTitle: 'อเวนเจอร์ส: ซีเคร็ต วอร์ส', year: 2027, upcoming: true, type: 'movie', phase: 6 },
+            { id: 'armor-wars', releaseOrder: 64, chronoOrder: 64, title: 'Armor Wars', thaiTitle: 'อาร์เมอร์ วอร์ส', year: 2027, upcoming: true, type: 'movie', phase: 6 },
+            { id: 'blade-mcu', releaseOrder: 65, chronoOrder: 65, title: 'Blade', thaiTitle: 'เบลด นักล่าพันธุ์อมตะ', year: 2027, upcoming: true, type: 'movie', phase: 6 },
+            { id: 'shang-chi-2', releaseOrder: 66, chronoOrder: 66, title: 'Shang-Chi 2 (Untitled Sequel)', thaiTitle: 'ชาง-ชี ภาค 2', year: 2028, upcoming: true, type: 'movie', phase: 6 }
+        ];
+
+        // Application State
+        let state = {
+            watchedItems: {},
+            watchedEpisodes: {},
+            favorites: {},
+            expandedSeries: {},
+            phaseProgressOpen: false,
+            orderMode: 'release', // 'release' | 'chronological' | 'imdb'
+            typeFilter: 'all',    // 'all' | 'movie' | 'series'
+            statusFilter: 'all',  // 'all' | 'watched' | 'unwatched' | 'fav'
+            phaseFilter: 'all',   // 'all' | '1'..'6'
+            searchQuery: ''
+        };
+
+        const STORAGE_KEY = 'mcu_watchlist_v2';
+
+        /**
+         * Displays a non-blocking toast message
+         */
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            const styles = {
+                success: 'bg-emerald-950/95 border-emerald-500/60 text-emerald-200',
+                error: 'bg-red-950/95 border-red-500/60 text-red-200',
+                info: 'bg-marvel-card/95 border-marvel-border text-gray-200'
+            };
+
+            const icons = {
+                success: '✅',
+                error: '⚠️',
+                info: 'ℹ️'
+            };
+
+            toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-2xl text-xs sm:text-sm font-medium backdrop-blur-md transition-all duration-300 transform translate-y-2 opacity-0 ${styles[type] || styles.info}`;
+            toast.innerHTML = `<span>${icons[type] || icons.info}</span><span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        }
+
+        /**
+         * Loads saved progress from localStorage
+         */
+        function loadProgress() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('mcu_watchlist_v1');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    state.watchedItems = parsed.watchedItems || {};
+                    state.watchedEpisodes = parsed.watchedEpisodes || {};
+                    state.favorites = parsed.favorites || {};
+                }
+            } catch (err) {
+                console.error('Error loading progress:', err);
+            }
+            normalizeEpisodeArrays();
+        }
+
+        /**
+         * Ensures every series has an episode boolean array matching its episode count
+         */
+        function normalizeEpisodeArrays() {
+            mcuData.forEach(item => {
+                if (item.type === 'series' && Array.isArray(item.episodes)) {
+                    if (!Array.isArray(state.watchedEpisodes[item.id]) || state.watchedEpisodes[item.id].length !== item.episodes.length) {
+                        const isWatched = !!state.watchedItems[item.id];
+                        state.watchedEpisodes[item.id] = new Array(item.episodes.length).fill(isWatched);
+                    }
+                }
+            });
+        }
+
+        /**
+         * Persists progress to localStorage
+         */
+        function saveProgress() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    watchedItems: state.watchedItems,
+                    watchedEpisodes: state.watchedEpisodes,
+                    favorites: state.favorites
+                }));
+            } catch (err) {
+                console.error('Error saving progress:', err);
+            }
+        }
+
+        // ================= EXPORT / IMPORT JSON =================
+        function exportJSON() {
+            try {
+                const payload = {
+                    app: 'MCU Watchlist Tracker',
+                    version: 2,
+                    exportedAt: new Date().toISOString(),
+                    data: {
+                        watchedItems: state.watchedItems,
+                        watchedEpisodes: state.watchedEpisodes,
+                        favorites: state.favorites
+                    }
+                };
+
+                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                const dateStr = new Date().toISOString().slice(0, 10);
+                link.href = url;
+                link.download = `mcu-watchlist-backup-${dateStr}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                showToast('ดาวน์โหลดไฟล์สำรองข้อมูล JSON เรียบร้อยแล้ว', 'success');
+            } catch (err) {
+                console.error('Export failed:', err);
+                showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์ JSON', 'error');
+            }
+        }
+
+        function triggerImportJSON() {
+            const input = document.getElementById('import-file-input');
+            input.value = '';
+            input.click();
+        }
+
+        function handleImportJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    const imported = parsed.data ? parsed.data : parsed;
+
+                    if (typeof imported !== 'object' || imported === null) {
+                        throw new Error('Invalid JSON structure');
+                    }
+
+                    state.watchedItems = imported.watchedItems || {};
+                    state.watchedEpisodes = imported.watchedEpisodes || {};
+                    state.favorites = imported.favorites || {};
+
+                    normalizeEpisodeArrays();
+                    saveProgress();
+                    renderAll();
+                    showToast('นำเข้าข้อมูลเช็คลิสต์จากไฟล์ JSON สำเร็จ!', 'success');
+                } catch (err) {
+                    console.error('Import failed:', err);
+                    showToast('ไม่สามารถอ่านไฟล์ JSON ได้ กรุณาตรวจสอบไฟล์อีกครั้ง', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ================= WATCH & FAVORITE ACTIONS =================
+        function toggleItemWatched(id) {
+            const item = mcuData.find(x => x.id === id);
+            if (!item || item.upcoming) return;
+
+            const nextStatus = !state.watchedItems[id];
+            state.watchedItems[id] = nextStatus;
+
+            if (item.type === 'series' && Array.isArray(item.episodes)) {
+                state.watchedEpisodes[id] = new Array(item.episodes.length).fill(nextStatus);
+            }
+
+            saveProgress();
+            renderAll();
+        }
+
+        function setSeriesAllEpisodes(seriesId, watchedStatus) {
+            const item = mcuData.find(x => x.id === seriesId);
+            if (!item || item.type !== 'series' || !Array.isArray(item.episodes)) return;
+
+            state.watchedItems[seriesId] = watchedStatus;
+            state.watchedEpisodes[seriesId] = new Array(item.episodes.length).fill(watchedStatus);
+
+            saveProgress();
+            renderAll();
+        }
+
+        function toggleEpisodeWatched(seriesId, episodeIndex) {
+            const item = mcuData.find(x => x.id === seriesId);
+            if (!item || item.type !== 'series' || !Array.isArray(item.episodes)) return;
+
+            state.watchedEpisodes[seriesId][episodeIndex] = !state.watchedEpisodes[seriesId][episodeIndex];
+            state.watchedItems[seriesId] = state.watchedEpisodes[seriesId].every(Boolean);
+
+            saveProgress();
+            renderAll();
+        }
+
+        function toggleFavorite(id) {
+            const item = mcuData.find(x => x.id === id);
+            if (!item || item.upcoming) return;
+
+            state.favorites[id] = !state.favorites[id];
+            saveProgress();
+            renderAll();
+        }
+
+        function toggleFavQuickFilter() {
+            setStatusFilter(state.statusFilter === 'fav' ? 'all' : 'fav');
+        }
+
+        function toggleSeriesDropdown(seriesId) {
+            state.expandedSeries[seriesId] = !state.expandedSeries[seriesId];
+            renderChecklist();
+        }
+
+        function togglePhaseProgressDrawer() {
+            state.phaseProgressOpen = !state.phaseProgressOpen;
+            const drawer = document.getElementById('phase-progress-drawer');
+            const chevron = document.getElementById('phase-progress-chevron');
+            const label = document.getElementById('phase-progress-toggle-label').querySelector('span');
+
+            if (state.phaseProgressOpen) {
+                drawer.classList.add('open');
+                chevron.classList.add('rotate-180');
+                label.textContent = 'ซ่อนรายละเอียด';
+            } else {
+                drawer.classList.remove('open');
+                chevron.classList.remove('rotate-180');
+                label.textContent = 'แสดงรายละเอียด';
+            }
+        }
+
+        // ================= FILTERS & SORT ORDER =================
+        function setOrderMode(mode) {
+            state.orderMode = mode;
+            updateFilterButtonsUI();
+            renderChecklist();
+        }
+
+        function setTypeFilter(type) {
+            state.typeFilter = type;
+            updateFilterButtonsUI();
+            renderChecklist();
+        }
+
+        function setStatusFilter(status) {
+            state.statusFilter = status;
+            updateFilterButtonsUI();
+            renderChecklist();
+        }
+
+        function setPhaseFilter(phase) {
+            state.phaseFilter = phase;
+            renderChecklist();
+        }
+
+        function handleSearch(query) {
+            state.searchQuery = query.trim().toLowerCase();
+            renderChecklist();
+        }
+
+        function resetFilters() {
+            state.typeFilter = 'all';
+            state.statusFilter = 'all';
+            state.phaseFilter = 'all';
+            state.searchQuery = '';
+            document.getElementById('search-input').value = '';
+            document.getElementById('phase-select').value = 'all';
+            updateFilterButtonsUI();
+            renderChecklist();
+        }
+
+        function updateFilterButtonsUI() {
+            ['release', 'chronological', 'imdb'].forEach(m => {
+                const btn = document.getElementById(`btn-order-${m}`);
+                if (!btn) return;
+                if (state.orderMode === m) {
+                    btn.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500 text-marvel-black shadow transition cursor-pointer';
+                } else {
+                    btn.className = 'px-3 py-1.5 rounded-xl text-xs font-medium bg-marvel-black text-gray-400 border border-marvel-border hover:text-white transition cursor-pointer';
+                }
+            });
+
+            ['all', 'movie', 'series'].forEach(t => {
+                const btn = document.getElementById(`btn-type-${t}`);
+                if (!btn) return;
+                if (state.typeFilter === t) {
+                    btn.className = 'py-2 px-2 rounded-lg text-xs font-semibold text-center bg-marvel-red text-white shadow transition cursor-pointer';
+                } else {
+                    btn.className = 'py-2 px-2 rounded-lg text-xs font-medium text-center text-gray-400 hover:text-white hover:bg-gray-900/60 transition cursor-pointer';
+                }
+            });
+
+            ['all', 'watched', 'unwatched', 'fav'].forEach(s => {
+                const btn = document.getElementById(`btn-status-${s}`);
+                if (!btn) return;
+                if (state.statusFilter === s) {
+                    let activeColor = 'bg-marvel-red text-white';
+                    if (s === 'watched') activeColor = 'bg-emerald-600 text-white';
+                    if (s === 'fav') activeColor = 'bg-pink-600 text-white';
+                    btn.className = `py-2 px-2 rounded-lg text-xs font-semibold text-center ${activeColor} shadow transition cursor-pointer`;
+                } else {
+                    btn.className = 'py-2 px-2 rounded-lg text-xs font-medium text-center text-gray-400 hover:text-white hover:bg-gray-900/60 transition cursor-pointer';
+                }
+            });
+
+            const quickFavBtn = document.getElementById('btn-quick-fav');
+            if (quickFavBtn) {
+                if (state.statusFilter === 'fav') {
+                    quickFavBtn.textContent = 'แสดงทั้งหมด';
+                    quickFavBtn.className = 'px-3.5 py-2 rounded-xl text-xs font-semibold bg-pink-600 text-white border border-pink-400 shadow transition self-end sm:self-center shrink-0 cursor-pointer';
+                } else {
+                    quickFavBtn.textContent = 'ดูรายการโปรด';
+                    quickFavBtn.className = 'px-3.5 py-2 rounded-xl text-xs font-semibold bg-pink-500/15 hover:bg-pink-500/30 text-pink-200 border border-pink-500/40 transition self-end sm:self-center shrink-0 cursor-pointer';
+                }
+            }
+
+            const hintEl = document.getElementById('order-hint-text');
+            if (hintEl) {
+                if (state.orderMode === 'chronological') {
+                    hintEl.textContent = '⏳ กำลังเรียงตามลำดับไทม์ไลน์เนื้อเรื่อง (Chronological Order)';
+                } else if (state.orderMode === 'imdb') {
+                    hintEl.textContent = '⭐ กำลังเรียงตามคะแนน IMDb จากสูงสุดไปต่ำสุด';
+                } else {
+                    hintEl.textContent = '📅 กำลังเรียงตามลำดับปีที่ฉาย (Release Order)';
+                }
+            }
+        }
+
+        // ================= PROGRESS BARS & STATS =================
+        function updateStats() {
+            const releasedItems = mcuData.filter(item => !item.upcoming);
+            const total = releasedItems.length;
+            let watchedTotal = 0;
+            let moviesTotal = 0;
+            let moviesWatched = 0;
+            let seriesTotal = 0;
+            let seriesWatched = 0;
+            let favCount = 0;
+
+            const phaseStats = {
+                1: { total: 0, watched: 0, label: 'Phase 1 (2008–2012)' },
+                2: { total: 0, watched: 0, label: 'Phase 2 (2013–2015)' },
+                3: { total: 0, watched: 0, label: 'Phase 3 (2016–2019)' },
+                4: { total: 0, watched: 0, label: 'Phase 4 (2021–2022)' },
+                5: { total: 0, watched: 0, label: 'Phase 5 (2023–2025)' },
+                6: { total: 0, watched: 0, label: 'Phase 6 (ฉายแล้ว)' }
+            };
+
+            releasedItems.forEach(item => {
+                const isWatched = !!state.watchedItems[item.id];
+                const isFav = !!state.favorites[item.id];
+
+                if (isWatched) watchedTotal++;
+                if (isFav) favCount++;
+
+                if (phaseStats[item.phase]) {
+                    phaseStats[item.phase].total++;
+                    if (isWatched) phaseStats[item.phase].watched++;
+                }
+
+                if (item.type === 'movie') {
+                    moviesTotal++;
+                    if (isWatched) moviesWatched++;
+                } else if (item.type === 'series') {
+                    seriesTotal++;
+                    if (isWatched) seriesWatched++;
+                }
+            });
+
+            const totalPct = total > 0 ? Math.round((watchedTotal / total) * 100) : 0;
+            document.getElementById('total-progress-count').textContent = `${watchedTotal} / ${total} เรื่อง`;
+            document.getElementById('total-progress-percent').textContent = `${totalPct}%`;
+            document.getElementById('total-progress-bar').style.width = `${totalPct}%`;
+
+            const moviesPct = moviesTotal > 0 ? Math.round((moviesWatched / moviesTotal) * 100) : 0;
+            document.getElementById('stat-movies').textContent = `${moviesWatched} / ${moviesTotal} (${moviesPct}%)`;
+            document.getElementById('bar-movies').style.width = `${moviesPct}%`;
+
+            const seriesPct = seriesTotal > 0 ? Math.round((seriesWatched / seriesTotal) * 100) : 0;
+            document.getElementById('stat-series').textContent = `${seriesWatched} / ${seriesTotal} (${seriesPct}%)`;
+            document.getElementById('bar-series').style.width = `${seriesPct}%`;
+
+            const phaseGrid = document.getElementById('phase-progress-grid');
+            phaseGrid.innerHTML = Object.keys(phaseStats).map(pKey => {
+                const p = phaseStats[pKey];
+                const pct = p.total > 0 ? Math.round((p.watched / p.total) * 100) : 0;
+                const isComplete = pct === 100 && p.total > 0;
+                return `
+                    <div class="bg-marvel-black/60 border ${isComplete ? 'border-emerald-500/40' : 'border-marvel-border/70'} rounded-xl p-3 space-y-1.5">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-medium ${isComplete ? 'text-emerald-300' : 'text-gray-300'}">${p.label}</span>
+                            <span class="font-bold ${isComplete ? 'text-emerald-400' : 'text-gray-200'}">${p.watched}/${p.total} (${pct}%)</span>
+                        </div>
+                        <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                            <div class="${isComplete ? 'bg-emerald-500' : 'bg-marvel-gold'} h-1.5 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ================= RENDER CHECKLIST & UPCOMING =================
+        function renderChecklist() {
+            const container = document.getElementById('checklist-container');
+            const upcomingSection = document.getElementById('upcoming-section');
+            const upcomingContainer = document.getElementById('upcoming-container');
+            const upcomingCountBadge = document.getElementById('upcoming-count-badge');
+            const emptyState = document.getElementById('empty-state');
+            const showingCountEl = document.getElementById('showing-count');
+
+            const matchesSearchAndMeta = (item) => {
+                if (state.typeFilter !== 'all' && item.type !== state.typeFilter) return false;
+                if (state.phaseFilter !== 'all' && String(item.phase) !== state.phaseFilter) return false;
+
+                if (state.searchQuery) {
+                    const matchTitle = item.title.toLowerCase().includes(state.searchQuery);
+                    const matchThai = item.thaiTitle && item.thaiTitle.toLowerCase().includes(state.searchQuery);
+                    const matchYear = String(item.year).includes(state.searchQuery);
+                    const matchEra = item.timelineEra && item.timelineEra.toLowerCase().includes(state.searchQuery);
+                    if (!matchTitle && !matchThai && !matchYear && !matchEra) return false;
+                }
+                return true;
+            };
+
+            // Released items
+            const releasedFiltered = mcuData.filter(item => {
+                if (item.upcoming) return false;
+                if (!matchesSearchAndMeta(item)) return false;
+
+                const isWatched = !!state.watchedItems[item.id];
+                const isFav = !!state.favorites[item.id];
+
+                if (state.statusFilter === 'watched' && !isWatched) return false;
+                if (state.statusFilter === 'unwatched' && isWatched) return false;
+                if (state.statusFilter === 'fav' && !isFav) return false;
+
+                return true;
+            });
+
+            // Sort released items by active order mode
+            releasedFiltered.sort((a, b) => {
+                if (state.orderMode === 'chronological') {
+                    return a.chronoOrder - b.chronoOrder;
+                }
+                if (state.orderMode === 'imdb') {
+                    const diff = parseFloat(b.imdb) - parseFloat(a.imdb);
+                    return diff !== 0 ? diff : a.releaseOrder - b.releaseOrder;
+                }
+                return a.releaseOrder - b.releaseOrder;
+            });
+
+            // Upcoming items (visible when statusFilter is 'all' or 'unwatched')
+            const upcomingFiltered = (state.statusFilter === 'all' || state.statusFilter === 'unwatched')
+                ? mcuData.filter(item => item.upcoming && matchesSearchAndMeta(item)).sort((a, b) => a.releaseOrder - b.releaseOrder)
+                : [];
+
+            const totalReleased = mcuData.filter(i => !i.upcoming).length;
+            showingCountEl.textContent = `กำลังแสดง ${releasedFiltered.length} รายการที่ฉายแล้ว (จากทั้งหมด ${totalReleased} เรื่อง)${upcomingFiltered.length > 0 ? ` • รอเข้าฉาย ${upcomingFiltered.length} เรื่อง` : ''}`;
+
+            if (releasedFiltered.length === 0 && upcomingFiltered.length === 0) {
+                container.innerHTML = '';
+                upcomingSection.classList.add('hidden');
+                upcomingContainer.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            // Render Released Cards with dynamic sequential order number (1., 2., ...) matching active sort order
+            // Render Released Cards with fixed sequential order number matching Release Order (item.releaseOrder)
+            container.innerHTML = releasedFiltered.map((item) => {
+                const isWatched = !!state.watchedItems[item.id];
+                const isFav = !!state.favorites[item.id];
+                const isSeries = item.type === 'series';
+                const isExpanded = !!state.expandedSeries[item.id];
+                const sequenceNumber = item.releaseOrder;
+
+                let epWatchedCount = 0;
+                let epTotalCount = 0;
+                if (isSeries && Array.isArray(item.episodes)) {
+                    epTotalCount = item.episodes.length;
+                    epWatchedCount = (state.watchedEpisodes[item.id] || []).filter(Boolean).length;
+                }
+
+                const cardBorderClass = isWatched
+                    ? 'border-emerald-500/40 bg-gradient-to-r from-[#121D1A] to-marvel-card'
+                    : isFav
+                        ? 'border-pink-500/35 bg-marvel-card hover:bg-marvel-cardHover'
+                        : 'border-marvel-border bg-marvel-card hover:bg-marvel-cardHover';
+
+                return `
+                    <article class="border ${cardBorderClass} rounded-2xl transition-all duration-200 overflow-hidden shadow-md">
+                        <div class="p-4 sm:px-5 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+
+                            <!-- Left: Checkbox + Fixed Release Order Number + English Title + Thai Subtitle -->
+                            <div class="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
+                                <button onclick="toggleItemWatched('${item.id}')"
+                                    aria-label="ทำเครื่องหมายว่าดูแล้ว"
+                                    class="mt-0.5 sm:mt-0 w-7 h-7 rounded-xl flex items-center justify-center border-2 transition-all shrink-0 cursor-pointer ${
+                                        isWatched
+                                        ? 'bg-emerald-500 border-emerald-500 text-marvel-black shadow-lg shadow-emerald-500/25'
+                                        : 'border-gray-600 hover:border-marvel-red bg-marvel-black/60 text-transparent'
+                                    }">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 stroke-[3]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </button>
+
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold tracking-wide ${
+                                            isSeries
+                                            ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                                            : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                                        }">
+                                            ${isSeries ? '📺 ซีรีส์' : '🎬 หนัง'}
+                                        </span>
+
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-800 text-gray-300 border border-gray-700">
+                                            Phase ${item.phase}
+                                        </span>
+
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-marvel-gold/15 text-marvel-gold border border-marvel-gold/30">
+                                            ⭐ IMDb ${item.imdb}
+                                        </span>
+
+                                        ${state.orderMode === 'chronological' && item.timelineEra ? `
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                                Timeline #${item.chronoOrder} • ${item.timelineEra}
+                                            </span>
+                                        ` : ''}
+                                    </div>
+
+                                    <h2 class="text-base sm:text-lg font-bold leading-snug ${isWatched ? 'text-gray-300' : 'text-white'}">
+                                        <span class="font-display font-extrabold text-marvel-gold mr-1.5">${sequenceNumber}.</span><span class="font-display">${item.title}</span>
+                                        <span class="text-marvel-red font-display font-semibold ml-1">(${item.year})</span>
+                                        ${item.thaiTitle ? `<span class="block sm:inline text-xs sm:text-sm font-normal text-slate-400 sm:ml-2">${item.thaiTitle}</span>` : ''}
+                                    </h2>
+                                </div>
+                            </div>
+
+                            <!-- Right: Favorite Button, Watch Button & Series Episode Dropdown -->
+                            <div class="flex items-center justify-between md:justify-end gap-2 pl-10 md:pl-0 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <button onclick="toggleFavorite('${item.id}')"
+                                        title="${isFav ? 'นำออกจากรายการโปรด' : 'เพิ่มในรายการโปรด / อยากดู'}"
+                                        aria-label="ปุ่มรายการโปรด"
+                                        class="p-2 rounded-xl border transition cursor-pointer ${
+                                            isFav
+                                            ? 'bg-pink-500/20 border-pink-500/50 text-pink-400 shadow-sm shadow-pink-500/20'
+                                            : 'bg-marvel-black/70 border-marvel-border text-gray-500 hover:text-pink-400 hover:border-pink-500/40'
+                                        }">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ${isFav ? 'fill-pink-500 text-pink-500' : 'fill-none'}" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                        </svg>
+                                    </button>
+
+                                    <button onclick="toggleItemWatched('${item.id}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                                        isWatched
+                                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                                        : 'bg-gray-800/90 text-gray-400 border border-gray-700 hover:text-white hover:border-gray-500'
+                                    }">
+                                        ${isWatched ? 'ดูแล้ว ✓' : 'ยังไม่ได้ดู'}
+                                    </button>
+                                </div>
+
+                                ${isSeries ? `
+                                    <button onclick="toggleSeriesDropdown('${item.id}')"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-marvel-black hover:bg-gray-900 text-gray-200 border border-marvel-border hover:border-purple-500/50 transition cursor-pointer">
+                                        <span>รายชื่อตอน (${epWatchedCount}/${epTotalCount})</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <!-- Series Episode Dropdown Drawer -->
+                        ${isSeries ? `
+                            <div class="smooth-drawer ${isExpanded ? 'open' : ''}">
+                                <div class="smooth-drawer-inner">
+                                    <div class="bg-marvel-black/70 border-t border-marvel-border/80 px-4 sm:px-6 py-3.5 space-y-3">
+                                        <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
+                                            <span class="font-medium text-purple-300">รายชื่อตอนทั้งหมด (${epWatchedCount}/${epTotalCount} ตอน)</span>
+                                            <div class="flex items-center gap-2">
+                                                <button onclick="setSeriesAllEpisodes('${item.id}', true)" class="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition cursor-pointer">
+                                                    ดูครบทุกตอน
+                                                </button>
+                                                <button onclick="setSeriesAllEpisodes('${item.id}', false)" class="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 transition cursor-pointer">
+                                                    ล้างสถานะ
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            ${item.episodes.map((epTitle, epIdx) => {
+                                                const epChecked = !!(state.watchedEpisodes[item.id] && state.watchedEpisodes[item.id][epIdx]);
+                                                return `
+                                                    <label onclick="toggleEpisodeWatched('${item.id}', ${epIdx})"
+                                                        class="flex items-center gap-3 p-2.5 rounded-xl border transition cursor-pointer select-none ${
+                                                            epChecked
+                                                            ? 'bg-emerald-950/25 border-emerald-500/30 text-gray-300'
+                                                            : 'bg-marvel-card/80 border-marvel-border/70 hover:border-gray-600 text-gray-200'
+                                                        }">
+                                                        <div class="w-5 h-5 rounded-md flex items-center justify-center border transition shrink-0 ${
+                                                            epChecked
+                                                            ? 'bg-emerald-500 border-emerald-500 text-marvel-black'
+                                                            : 'border-gray-600 bg-marvel-black'
+                                                        }">
+                                                            ${epChecked ? `
+                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 stroke-[3]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            ` : ''}
+                                                        </div>
+                                                        <span class="text-xs sm:text-sm leading-snug ${epChecked ? 'line-through text-gray-500' : ''}">
+                                                            ${epTitle}
+                                                        </span>
+                                                    </label>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </article>
+                `;
+            }).join('');
+
+            // Render Upcoming Cards: English Title + Smaller Gray Thai Subtitle + Year (NO sequence number, NO IMDb score, NO Favorite button)
+            if (upcomingFiltered.length > 0) {
+                upcomingSection.classList.remove('hidden');
+                upcomingCountBadge.textContent = `${upcomingFiltered.length} รายการ`;
+
+                upcomingContainer.innerHTML = upcomingFiltered.map(item => {
+                    const isSeries = item.type === 'series';
+
+                    return `
+                        <article class="border border-cyan-500/30 bg-gradient-to-r from-[#0F1923] to-marvel-card rounded-2xl transition-all duration-200 overflow-hidden shadow-md">
+                            <div class="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold tracking-wide ${
+                                            isSeries
+                                            ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                                            : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                                        }">
+                                            ${isSeries ? '📺 ซีรีส์' : '🎬 หนัง'}
+                                        </span>
+
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-800 text-gray-300 border border-gray-700">
+                                            Phase ${item.phase}
+                                        </span>
+
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                                            🔜 กำลังรอเข้าฉาย
+                                        </span>
+                                    </div>
+
+                                    <h3 class="text-base sm:text-lg font-bold leading-snug text-white">
+                                        <span class="font-display">${item.title}</span>
+                                        <span class="text-cyan-400 font-display font-semibold ml-1">(${item.year})</span>
+                                        ${item.thaiTitle ? `<span class="block sm:inline text-xs sm:text-sm font-normal text-slate-400 sm:ml-2">${item.thaiTitle}</span>` : ''}
+                                    </h3>
+                                </div>
+
+                                <div class="flex items-center justify-end shrink-0">
+                                    <span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-cyan-950/70 text-cyan-300 border border-cyan-500/30">
+                                        กำหนดฉายปี ${item.year}
+                                    </span>
+                                </div>
+                            </div>
+                        </article>
+                    `;
+                }).join('');
+            } else {
+                upcomingSection.classList.add('hidden');
+                upcomingContainer.innerHTML = '';
+            }
+        }
+
+        // ================= RESET MODAL =================
+        function openResetModal() {
+            const modal = document.getElementById('reset-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeResetModal() {
+            const modal = document.getElementById('reset-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function confirmResetProgress() {
+            state.watchedItems = {};
+            state.watchedEpisodes = {};
+            state.favorites = {};
+            normalizeEpisodeArrays();
+            saveProgress();
+            closeResetModal();
+            renderAll();
+            showToast('รีเซ็ตข้อมูลทั้งหมดเรียบร้อยแล้ว', 'info');
+        }
+
+        function renderAll() {
+            updateStats();
+            renderChecklist();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadProgress();
+            updateFilterButtonsUI();
+            renderAll();
+        });
+    </script>
+</body>
+</html>
